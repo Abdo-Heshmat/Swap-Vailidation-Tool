@@ -59,7 +59,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.markdown("<h1 style='text-align: center;'>🛡️ Swap Validation Tool</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'> Swap Validation Tool</h1>", unsafe_allow_html=True)
 
 is_ramadan = st.checkbox("🌙 Ramadan's shifts (7 hours)")
 duration = 7 if is_ramadan else 9
