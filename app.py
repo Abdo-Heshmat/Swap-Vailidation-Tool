@@ -3,14 +3,11 @@ from datetime import datetime, timedelta
 
 # --- Helper Functions ---
 def calculate_end_time(start_time_str, duration):
-    """Calculates end time based on start and duration (7h or 9h)."""
     start_dt = datetime.strptime(start_time_str, "%I %p")
     end_dt = start_dt + timedelta(hours=duration)
     return end_dt.strftime("%I %p")
 
 def get_dt(day_idx, time_str):
-    """Converts a day index and time string into a datetime object for comparison."""
-    # Reference: Sunday March 22 (Day 0), Monday March 23 (Day 1)
     base_date = datetime(2026, 3, 22) 
     target_date = base_date + timedelta(days=day_idx)
     time_obj = datetime.strptime(time_str, "%I %p").time()
@@ -34,7 +31,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.markdown("<h1 style='text-align: center;'>🔄 Final Swap Validator</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'>🔄 Smart Swap Validator</h1>", unsafe_allow_html=True)
 
 is_ramadan = st.checkbox("🌙 Ramadan's shifts (7 hours)")
 duration = 7 if is_ramadan else 9
@@ -43,7 +40,6 @@ day_list = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "S
 hours = [datetime.strptime(str(i), "%H").strftime("%I %p") for i in range(24)]
 
 col1, col2 = st.columns(2)
-# Using separate dictionaries to prevent lookup errors
 shift_starts = {}
 shift_ends = {}
 off_counts = {}
@@ -52,7 +48,6 @@ off_counts = {}
 for i, col in enumerate([col1, col2], 1):
     with col:
         st.markdown(f"<h3 style='text-align: center;'>👤 Employee {i}</h3>", unsafe_allow_html=True)
-        # Fixed: Explicit key for name
         st.text_input("Name", placeholder=f"Employee {i} Name", key=f"user_name_{i}", label_visibility="collapsed")
         
         for week in ["Current", "Next"]:
@@ -67,18 +62,21 @@ for i, col in enumerate([col1, col2], 1):
                 with t3:
                     e_time = calculate_end_time(s_time, duration)
                     st.markdown(f"<div class='dark-match-box'>{e_time}</div>", unsafe_allow_html=True)
-                    # Store values
                     shift_starts[f"e{i}_{week}"] = s_time
                     shift_ends[f"e{i}_{week}"] = e_time
 
-                # Days Off Logic
+                # --- DYNAMIC DAYS OFF FILTERING ---
                 st.write("Days Off:")
                 d_col1, d_col2 = st.columns(2)
-                off1 = d_col1.selectbox(f"Off1 {i}{week}", ["First Day off"] + day_list, key=f"d{i}a_{week}", label_visibility="collapsed")
-                off2 = d_col2.selectbox(f"Off2 {i}{week}", ["Second Day off"] + day_list, key=f"d{i}b_{week}", label_visibility="collapsed")
                 
-                if off1 == off2 and off1 != "First Day off":
-                    st.error("⚠️ Days off must be different!")
+                # First box has all days
+                off1 = d_col1.selectbox(f"Off1 {i}{week}", ["First Day off"] + day_list, key=f"d{i}a_{week}", label_visibility="collapsed")
+                
+                # Filter the list for the second box
+                filtered_days = [d for d in day_list if d != off1] 
+                
+                # Second box only shows days NOT picked in the first box
+                off2 = d_col2.selectbox(f"Off2 {i}{week}", ["Second Day off"] + filtered_days, key=f"d{i}b_{week}", label_visibility="collapsed")
                 
                 count = 0
                 if off1 != "First Day off": count += 1
@@ -87,13 +85,8 @@ for i, col in enumerate([col1, col2], 1):
 
 st.divider()
 
-# --- Validation Logic ---
 if st.button("🚀 Run Swap Check", use_container_width=True):
     validation_results = []
-    
-    # Logic: 
-    # E1 Result = E1_Current Week + E2_Next Week
-    # E2 Result = E2_Current Week + E1_Next Week
     swap_config = {
         1: {"cur_id": "e1_Current", "next_id": "e2_Next", "name_key": "user_name_1"},
         2: {"cur_id": "e2_Current", "next_id": "e1_Next", "name_key": "user_name_2"}
@@ -104,7 +97,6 @@ if st.button("🚀 Run Swap Check", use_container_width=True):
         name = st.session_state[config['name_key']] if st.session_state[config['name_key']] else f"Employee {emp_num}"
         
         # 1. 12H Rest Rule Check
-        # End of their current week shift vs Start of the swapped next week shift
         dt_end = get_dt(0, shift_ends[config['cur_id']])
         dt_start = get_dt(1, shift_starts[config['next_id']])
         rest = (dt_start - dt_end).total_seconds() / 3600
@@ -113,7 +105,6 @@ if st.button("🚀 Run Swap Check", use_container_width=True):
             reasons.append(f"Insufficient Rest: Only **{rest:.1f}h** between shifts (Min 12h).")
 
         # 2. 6-Day Work Rule Check
-        # Work days = 7 minus days off
         work_cur = 7 - off_counts[config['cur_id']]
         work_next = 7 - off_counts[config['next_id']]
         
@@ -124,11 +115,10 @@ if st.button("🚀 Run Swap Check", use_container_width=True):
             
         validation_results.append({"name": name, "reasons": reasons})
 
-    # Final Output Display
     is_success = all(len(r["reasons"]) == 0 for r in validation_results)
     
     if is_success:
-        st.markdown("<div class='status-container approved'><h2 style='text-align: center;'>✅ Swap Validated & Approved</h2><p style='text-align: center;'>Both schedules follow the 12h rest and 6-day work rules.</p></div>", unsafe_allow_html=True)
+        st.markdown("<div class='status-container approved'><h2 style='text-align: center;'>✅ Swap Validated & Approved</h2></div>", unsafe_allow_html=True)
         st.balloons()
     else:
         html = "<div class='status-container rejected'><h2 style='text-align: center;'>❌ Swap Rejected</h2>"
