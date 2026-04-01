@@ -115,31 +115,29 @@ if st.button("✅ Check the Validation", use_container_width=True):
         name = st.session_state[f"name_{i}"] if st.session_state[f"name_{i}"] else f"Employee {i}"
         reasons = []
         
-        # --- THE 12H REST RULE ---
-        # Comparing the end of the last day of 'Current Week' (Day 0) 
-        # to the start of the first day of 'Next Week' (Day 1)
+        # --- 1. RESTING HOURS CALCULATION (12H RULE) ---
         dt_old_end = get_dt(0, shift_data[f"e{i}_Current Week_end"])
         dt_new_start = get_dt(1, shift_data[f"e{i}_Next Week_start"])
         rest = (dt_new_start - dt_old_end).total_seconds() / 3600
         
         if rest < 12:
-            reasons.append(f"Gap between old and new shift is only **{rest:.1f}h** (Must be 12h+).")
+            reasons.append(f"Resting Hours: **{rest:.1f}h** (Minimum 12h required).")
             
-        # --- THE 6-DAY RULE ---
+        # --- 2. MAX WORKING DAYS CALCULATION (6-DAY RULE) ---
         curr_work = 7 - days_off_data[f"e{i}_Current Week_offcount"]
         next_work = 7 - days_off_data[f"e{i}_Next Week_offcount"]
         
         if curr_work > 6:
-            reasons.append(f"Current Week: Working **{curr_work} days** (Max 6).")
+            reasons.append(f"Current Week: Working **{curr_work} days** (Max limit 6).")
         if next_work > 6:
-            reasons.append(f"Next Week: Working **{next_work} days** (Max 6).")
+            reasons.append(f"Next Week: Working **{next_work} days** (Max limit 6).")
             
         results.append({"name": name, "reasons": reasons})
 
     all_clear = all(len(r["reasons"]) == 0 for r in results)
     
     if all_clear:
-        st.markdown("<div class='status-container approved'><h2>✅ Swap Approved</h2><p>All rest periods are 12 hours or more.</p></div>", unsafe_allow_html=True)
+        st.markdown("<div class='status-container approved'><h2>✅ Swap Approved</h2><p>Resting hours ≥ 12h and work days ≤ 6 for both employees.</p></div>", unsafe_allow_html=True)
         st.balloons()
     else:
         html_output = "<div class='status-container rejected'><h2>❌ Swap Rejected</h2>"
@@ -149,7 +147,7 @@ if st.button("✅ Check the Validation", use_container_width=True):
                 for reason in res["reasons"]:
                     html_output += f"<div class='reason-item'>{reason}</div>"
             else:
-                html_output += f"<div class='emp-header' style='color: #a5d6a7;'>{res['name']}: No issues</div>"
+                html_output += f"<div class='emp-header' style='color: #a5d6a7;'>{res['name']}: ✅ Requirements Met</div>"
         html_output += "</div>"
         st.markdown(html_output, unsafe_allow_html=True)
 
