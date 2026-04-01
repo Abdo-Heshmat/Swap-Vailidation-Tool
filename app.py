@@ -53,7 +53,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.markdown("<h1 style='text-align: center;'>🛡️ Swap Validation Tool</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'> Swap Validation Tool</h1>", unsafe_allow_html=True)
 
 # 1. RAMADAN TOGGLE: This changes 'duration' globally
 is_ramadan = st.checkbox("🌙 Ramadan's shifts (7 hours)")
@@ -71,7 +71,7 @@ shift_data = {}
 for i, col in enumerate([col1, col2], 1):
     with col:
         st.markdown(f"<h3 style='text-align: center;'>👤 Employee {i}</h3>", unsafe_allow_html=True)
-        emp_name = st.text_input(f"E{i} Name", ["John", "Mike"][i-1], key=f"name_{i}", label_visibility="collapsed")
+        emp_name = st.text_input(f"E{i} Name", ["ENter your name", "ENter your name"][i-1], key=f"name_{i}", label_visibility="collapsed")
         
         for week in ["Current Week", "Next Week"]:
             with st.container(border=True):
