@@ -24,7 +24,6 @@ st.markdown("""
         max-width: 1100px; 
         margin: 0 auto; 
     }
-    /* Centered Name Input */
     input[type="text"] {
         text-align: center !important;
         background-color: #1e2129 !important;
@@ -32,14 +31,12 @@ st.markdown("""
         border: 1px solid #3e4451 !important;
         border-radius: 8px !important;
     }
-    /* Dark Dropdowns */
     div[data-baseweb="select"] > div {
         background-color: #1e2129 !important;
         color: white !important;
         border: 1px solid #3e4451 !important;
         border-radius: 8px !important;
     }
-    /* Dark Shift End Box */
     .dark-match-box {
         background-color: #1e2129; 
         color: white;
@@ -54,10 +51,11 @@ st.markdown("""
         align-items: center;
         justify-content: center;
     }
-    .status-container { padding: 25px; border-radius: 15px; margin-top: 20px; text-align: center; }
+    .status-container { padding: 20px; border-radius: 12px; margin-top: 15px; }
     .approved { background-color: #1b5e20; color: white; border: 2px solid #ffffff; }
     .rejected { background-color: #b71c1c; color: white; border: 2px solid #ffffff; }
-    .reason-text { font-size: 1.1rem; margin-top: 10px; font-weight: normal; opacity: 0.9; }
+    .emp-header { font-weight: bold; font-size: 1.2rem; margin-bottom: 5px; text-decoration: underline; }
+    .reason-item { margin-left: 20px; font-size: 1rem; list-style-type: disc; }
     .week-label { text-align: center; font-weight: bold; margin-bottom: 10px; display: block; }
     </style>
     """, unsafe_allow_html=True)
@@ -72,18 +70,18 @@ hours = [datetime.strptime(str(i), "%H").strftime("%I %p") for i in range(24)]
 
 col1, col2 = st.columns(2)
 shift_data = {}
+days_off_data = {}
 
 # --- Employee Sections ---
 for i, col in enumerate([col1, col2], 1):
     with col:
         st.markdown(f"<h3 style='text-align: center;'>👤 Employee {i}</h3>", unsafe_allow_html=True)
-        st.text_input(placeholder="Enter your Name here", key=f"name_input_{i}", label="Name", label_visibility="collapsed")
+        st.text_input(placeholder="Enter your Name here", key=f"name_{i}", label="Name", label_visibility="collapsed")
         
         for week in ["Current Week", "Next Week"]:
             with st.container(border=True):
                 st.markdown(f"<span class='week-label'>🗓️ {week}</span>", unsafe_allow_html=True)
                 
-                # Shift Times Row
                 t_col1, t_col2, t_col3 = st.columns([3, 1, 3])
                 with t_col1:
                     st.write("Start")
@@ -97,32 +95,61 @@ for i, col in enumerate([col1, col2], 1):
                     shift_data[f"e{i}_{week}_end"] = e_time
                     shift_data[f"e{i}_{week}_start"] = s_time
 
-                # Days Off Row (ADDED BACK)
                 st.write("Days Off:")
                 d_col1, d_col2 = st.columns(2)
-                d_col1.selectbox("Off 1", ["First Day off"] + day_list, key=f"d{i}a_{week}", label_visibility="collapsed")
-                d_col2.selectbox("Off 2", ["Second Day off"] + day_list, key=f"d{i}b_{week}", label_visibility="collapsed")
+                off1 = d_col1.selectbox("Off 1", ["First Day off"] + day_list, key=f"d{i}a_{week}", label_visibility="collapsed")
+                off2 = d_col2.selectbox("Off 2", ["Second Day off"] + day_list, key=f"d{i}b_{week}", label_visibility="collapsed")
+                
+                off_count = 0
+                if off1 != "First Day off": off_count += 1
+                if off2 != "Second Day off": off_count += 1
+                days_off_data[f"e{i}_{week}_offcount"] = off_count
 
 st.divider()
 
 if st.button("✅ Check the Validation", use_container_width=True):
-    # Validation Logic: Comparing E1 End vs E2 Start (Example rule)
-    dt_end = get_dt(1, shift_data["e1_Current Week_end"])
-    dt_start = get_dt(2, shift_data["e2_Current Week_start"])
-    rest_hours = (dt_start - dt_end).total_seconds() / 3600
+    results = [] # To store (name, is_ok, reasons)
     
-    if rest_hours >= 21:
-        st.markdown(f"<div class='status-container approved'><h2>✅ Swap Approved</h2><p>Rest Period: {rest_hours:.1f} hours</p></div>", unsafe_allow_html=True)
+    for i in [1, 2]:
+        name = st.session_state[f"name_{i}"] if st.session_state[f"name_{i}"] else f"Employee {i}"
+        reasons = []
+        
+        # Rule 1: 12H Rest Check (E1/E2 Current End to Next Week Start)
+        dt_end = get_dt(0, shift_data[f"e{i}_Current Week_end"])
+        dt_start = get_dt(1, shift_data[f"e{i}_Next Week_start"])
+        rest = (dt_start - dt_end).total_seconds() / 3600
+        
+        if rest < 12:
+            reasons.append(f"Insufficient rest: {rest:.1f}h (Minimum 12h required).")
+            
+        # Rule 2: Max 6 Consecutive Days Check
+        curr_work = 7 - days_off_data[f"e{i}_Current Week_offcount"]
+        next_work = 7 - days_off_data[f"e{i}_Next Week_offcount"]
+        
+        if curr_work > 6:
+            reasons.append(f"Current Week: Working {curr_work} days (Maximum 6 allowed).")
+        if next_work > 6:
+            reasons.append(f"Next Week: Working {next_work} days (Maximum 6 allowed).")
+            
+        results.append({"name": name, "reasons": reasons})
+
+    # Final Display Logic
+    all_clear = all(len(r["reasons"]) == 0 for r in results)
+    
+    if all_clear:
+        st.markdown("<div class='status-container approved'><h2>✅ Swap Approved</h2><p>Both employees passed all validation rules.</p></div>", unsafe_allow_html=True)
         st.balloons()
     else:
-        st.markdown(f"""
-            <div class='status-container rejected'>
-                <h2>❌ Swap Rejected</h2>
-                <div class='reason-text'>
-                    <b>Reason:</b> Insufficient rest between shifts.<br>
-                    Actual: {rest_hours:.1f}h | Required: 21h
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
+        # Build the rejection list HTML
+        html_output = "<div class='status-container rejected'><h2>❌ Swap Rejected</h2>"
+        for res in results:
+            if res["reasons"]:
+                html_output += f"<div class='emp-header'>{res['name']}</div>"
+                for reason in res["reasons"]:
+                    html_output += f"<div class='reason-item'>{reason}</div>"
+            else:
+                html_output += f"<div class='emp-header' style='color: #d4edda;'>{res['name']}: ✅ No issues</div>"
+        html_output += "</div>"
+        st.markdown(html_output, unsafe_allow_html=True)
 
 st.markdown("<br><center><b>Created by Abdelrahman heshmat @abheshma</b></center>", unsafe_allow_html=True)
