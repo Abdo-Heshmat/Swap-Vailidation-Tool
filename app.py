@@ -3,12 +3,14 @@ from datetime import datetime, timedelta
 
 # --- Helper Functions ---
 def calculate_end_time(start_time_str, duration):
+    """Calculates end time based on start and duration (7h or 9h)."""
     start_dt = datetime.strptime(start_time_str, "%I %p")
     end_dt = start_dt + timedelta(hours=duration)
     return end_dt.strftime("%I %p")
 
 def get_dt(day_idx, time_str):
-    # Sunday is Day 0, Monday is Day 1
+    """Converts a day index and time string into a datetime object for comparison."""
+    # Reference: Sunday March 22 (Day 0), Monday March 23 (Day 1)
     base_date = datetime(2026, 3, 22) 
     target_date = base_date + timedelta(days=day_idx)
     time_obj = datetime.strptime(time_str, "%I %p").time()
@@ -32,7 +34,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.markdown("<h1 style='text-align: center;'>🔄 Swap Validation Tool</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'>🔄 Final Swap Validator</h1>", unsafe_allow_html=True)
 
 is_ramadan = st.checkbox("🌙 Ramadan's shifts (7 hours)")
 duration = 7 if is_ramadan else 9
@@ -41,94 +43,101 @@ day_list = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "S
 hours = [datetime.strptime(str(i), "%H").strftime("%I %p") for i in range(24)]
 
 col1, col2 = st.columns(2)
-shift_data = {}
-days_off_data = {}
+# Using separate dictionaries to prevent lookup errors
+shift_starts = {}
+shift_ends = {}
+off_counts = {}
 
 # --- Employee Data Entry ---
 for i, col in enumerate([col1, col2], 1):
     with col:
         st.markdown(f"<h3 style='text-align: center;'>👤 Employee {i}</h3>", unsafe_allow_html=True)
-        st.text_input(placeholder="Enter your Name here", key=f"name_{i}", label_visibility="collapsed")
+        # Fixed: Explicit key for name
+        st.text_input("Name", placeholder=f"Employee {i} Name", key=f"user_name_{i}", label_visibility="collapsed")
         
-        for week in ["Current Week", "Next Week"]:
+        for week in ["Current", "Next"]:
             with st.container(border=True):
-                st.markdown(f"<span class='week-label'>🗓️ {week}</span>", unsafe_allow_html=True)
+                st.markdown(f"<span class='week-label'>🗓️ {week} Week</span>", unsafe_allow_html=True)
                 
+                # Shift Timing
                 t1, t2, t3 = st.columns([3, 1, 3])
                 with t1:
-                    s_time = st.selectbox("Start", hours, index=9 if i==1 else 14, key=f"s{i}_{week}", label_visibility="collapsed")
+                    s_time = st.selectbox(f"Start {i}{week}", hours, index=9 if i==1 else 14, key=f"s{i}_{week}", label_visibility="collapsed")
                 with t2: st.write("<br><center>to</center>", unsafe_allow_html=True)
                 with t3:
                     e_time = calculate_end_time(s_time, duration)
                     st.markdown(f"<div class='dark-match-box'>{e_time}</div>", unsafe_allow_html=True)
-                    shift_data[f"e{i}_{week}_end"] = e_time
-                    shift_data[f"e{i}_{week}_start"] = s_time
+                    # Store values
+                    shift_starts[f"e{i}_{week}"] = s_time
+                    shift_ends[f"e{i}_{week}"] = e_time
 
+                # Days Off Logic
                 st.write("Days Off:")
                 d_col1, d_col2 = st.columns(2)
-                off1 = d_col1.selectbox("Off 1", ["First Day off"] + day_list, key=f"d{i}a_{week}", label_visibility="collapsed")
-                off2 = d_col2.selectbox("Off 2", ["Second Day off"] + day_list, key=f"d{i}b_{week}", label_visibility="collapsed")
+                off1 = d_col1.selectbox(f"Off1 {i}{week}", ["First Day off"] + day_list, key=f"d{i}a_{week}", label_visibility="collapsed")
+                off2 = d_col2.selectbox(f"Off2 {i}{week}", ["Second Day off"] + day_list, key=f"d{i}b_{week}", label_visibility="collapsed")
                 
                 if off1 == off2 and off1 != "First Day off":
                     st.error("⚠️ Days off must be different!")
                 
-                off_count = 0
-                if off1 != "First Day off": off_count += 1
-                if off2 != "Second Day off": off_count += 1
-                days_off_data[f"e{i}_{week}_offcount"] = off_count
+                count = 0
+                if off1 != "First Day off": count += 1
+                if off2 != "Second Day off": count += 1
+                off_counts[f"e{i}_{week}"] = count
 
 st.divider()
 
-if st.button("🚀 Check the Swap Validation", use_container_width=True):
-    results = []
+# --- Validation Logic ---
+if st.button("🚀 Run Swap Check", use_container_width=True):
+    validation_results = []
     
-    # Validation Mapping: 
-    # Employee 1's path: E1_Current -> E2_Next
-    # Employee 2's path: E2_Current -> E1_Next
-    swap_map = {
-        1: {"cur": "e1", "next": "e2"},
-        2: {"cur": "e2", "next": "e1"}
+    # Logic: 
+    # E1 Result = E1_Current Week + E2_Next Week
+    # E2 Result = E2_Current Week + E1_Next Week
+    swap_config = {
+        1: {"cur_id": "e1_Current", "next_id": "e2_Next", "name_key": "user_name_1"},
+        2: {"cur_id": "e2_Current", "next_id": "e1_Next", "name_key": "user_name_2"}
     }
 
-    for i in [1, 2]:
-        name = st.session_state[f"name_{i}"] if st.session_state[f"name_{i}"] else f"Employee {i}"
+    for emp_num, config in swap_config.items():
         reasons = []
+        name = st.session_state[config['name_key']] if st.session_state[config['name_key']] else f"Employee {emp_num}"
         
-        target = swap_map[i]
-        
-        # 1. 12H Rest Check (Current End vs. Swapped Next Start)
-        dt_end = get_dt(0, shift_data[f"{target['cur']}_Current Week_end"])
-        dt_start = get_dt(1, shift_data[f"{target['next']}_Next Week_start"])
+        # 1. 12H Rest Rule Check
+        # End of their current week shift vs Start of the swapped next week shift
+        dt_end = get_dt(0, shift_ends[config['cur_id']])
+        dt_start = get_dt(1, shift_starts[config['next_id']])
         rest = (dt_start - dt_end).total_seconds() / 3600
         
         if rest < 12:
-            reasons.append(f"Insufficient rest after swap: **{rest:.1f}h** (Min 12h).")
-            
-        # 2. 6-Day Work Rule
-        # Checking current week and the week they are taking over
-        curr_work = 7 - days_off_data[f"{target['cur']}_Current Week_offcount"]
-        next_work = 7 - days_off_data[f"{target['next']}_Next Week_offcount"]
-        
-        if curr_work > 6:
-            reasons.append(f"Current Week: Working {curr_work} days (Max 6).")
-        if next_work > 6:
-            reasons.append(f"Next Week (Swapped): Working {next_work} days (Max 6).")
-            
-        results.append({"name": name, "reasons": reasons})
+            reasons.append(f"Insufficient Rest: Only **{rest:.1f}h** between shifts (Min 12h).")
 
-    # Display results
-    all_clear = all(len(r["reasons"]) == 0 for r in results)
+        # 2. 6-Day Work Rule Check
+        # Work days = 7 minus days off
+        work_cur = 7 - off_counts[config['cur_id']]
+        work_next = 7 - off_counts[config['next_id']]
+        
+        if work_cur > 6:
+            reasons.append(f"Current Week: Working **{work_cur} days** (Limit 6).")
+        if work_next > 6:
+            reasons.append(f"Next Week (Swapped): Working **{work_next} days** (Limit 6).")
+            
+        validation_results.append({"name": name, "reasons": reasons})
+
+    # Final Output Display
+    is_success = all(len(r["reasons"]) == 0 for r in validation_results)
     
-    if all_clear:
-        st.markdown("<div class='status-container approved'><h2 style='text-align: center;'>✅ Swap Approved</h2><p style='text-align: center;'>The transition is safe for both employees!</p></div>", unsafe_allow_html=True)
+    if is_success:
+        st.markdown("<div class='status-container approved'><h2 style='text-align: center;'>✅ Swap Validated & Approved</h2><p style='text-align: center;'>Both schedules follow the 12h rest and 6-day work rules.</p></div>", unsafe_allow_html=True)
         st.balloons()
     else:
         html = "<div class='status-container rejected'><h2 style='text-align: center;'>❌ Swap Rejected</h2>"
-        for res in results:
+        for res in validation_results:
             html += f"<div class='emp-header'>{res['name']}</div>"
             if res["reasons"]:
                 for r in res["reasons"]: html += f"<div class='reason-item'>{r}</div>"
-            else: html += "<div class='reason-item' style='color: #a5d6a7;'>No issues with this path.</div>"
+            else:
+                html += "<div class='reason-item' style='color: #a5d6a7;'>✅ Schedule is safe.</div>"
         html += "</div>"
         st.markdown(html, unsafe_allow_html=True)
 
