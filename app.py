@@ -8,6 +8,7 @@ def calculate_end_time(start_time_str, duration):
     return end_dt.strftime("%I %p")
 
 def get_dt(day_idx, time_str):
+    # Reference Sunday: March 22, 2026
     base_date = datetime(2026, 3, 22) 
     target_date = base_date + timedelta(days=day_idx)
     time_obj = datetime.strptime(time_str, "%I %p").time()
@@ -54,7 +55,7 @@ st.markdown("""
     .status-container { padding: 20px; border-radius: 12px; margin-top: 15px; }
     .approved { background-color: #1b5e20; color: white; border: 2px solid #ffffff; }
     .rejected { background-color: #b71c1c; color: white; border: 2px solid #ffffff; }
-    .emp-header { font-weight: bold; font-size: 1.2rem; margin-bottom: 5px; text-decoration: underline; }
+    .emp-header { font-weight: bold; font-size: 1.2rem; margin-top: 10px; text-decoration: underline; }
     .reason-item { margin-left: 20px; font-size: 1rem; list-style-type: disc; }
     .week-label { text-align: center; font-weight: bold; margin-bottom: 10px; display: block; }
     </style>
@@ -108,39 +109,39 @@ for i, col in enumerate([col1, col2], 1):
 st.divider()
 
 if st.button("✅ Check the Validation", use_container_width=True):
-    results = [] # To store (name, is_ok, reasons)
+    results = []
     
     for i in [1, 2]:
         name = st.session_state[f"name_{i}"] if st.session_state[f"name_{i}"] else f"Employee {i}"
         reasons = []
         
-        # Rule 1: 12H Rest Check (E1/E2 Current End to Next Week Start)
-        dt_end = get_dt(0, shift_data[f"e{i}_Current Week_end"])
-        dt_start = get_dt(1, shift_data[f"e{i}_Next Week_start"])
-        rest = (dt_start - dt_end).total_seconds() / 3600
+        # --- THE 12H REST RULE ---
+        # Comparing the end of the last day of 'Current Week' (Day 0) 
+        # to the start of the first day of 'Next Week' (Day 1)
+        dt_old_end = get_dt(0, shift_data[f"e{i}_Current Week_end"])
+        dt_new_start = get_dt(1, shift_data[f"e{i}_Next Week_start"])
+        rest = (dt_new_start - dt_old_end).total_seconds() / 3600
         
         if rest < 12:
-            reasons.append(f"Insufficient rest: {rest:.1f}h (Minimum 12h required).")
+            reasons.append(f"Gap between old and new shift is only **{rest:.1f}h** (Must be 12h+).")
             
-        # Rule 2: Max 6 Consecutive Days Check
+        # --- THE 6-DAY RULE ---
         curr_work = 7 - days_off_data[f"e{i}_Current Week_offcount"]
         next_work = 7 - days_off_data[f"e{i}_Next Week_offcount"]
         
         if curr_work > 6:
-            reasons.append(f"Current Week: Working {curr_work} days (Maximum 6 allowed).")
+            reasons.append(f"Current Week: Working **{curr_work} days** (Max 6).")
         if next_work > 6:
-            reasons.append(f"Next Week: Working {next_work} days (Maximum 6 allowed).")
+            reasons.append(f"Next Week: Working **{next_work} days** (Max 6).")
             
         results.append({"name": name, "reasons": reasons})
 
-    # Final Display Logic
     all_clear = all(len(r["reasons"]) == 0 for r in results)
     
     if all_clear:
-        st.markdown("<div class='status-container approved'><h2>✅ Swap Approved</h2><p>Both employees passed all validation rules.</p></div>", unsafe_allow_html=True)
+        st.markdown("<div class='status-container approved'><h2>✅ Swap Approved</h2><p>All rest periods are 12 hours or more.</p></div>", unsafe_allow_html=True)
         st.balloons()
     else:
-        # Build the rejection list HTML
         html_output = "<div class='status-container rejected'><h2>❌ Swap Rejected</h2>"
         for res in results:
             if res["reasons"]:
@@ -148,7 +149,7 @@ if st.button("✅ Check the Validation", use_container_width=True):
                 for reason in res["reasons"]:
                     html_output += f"<div class='reason-item'>{reason}</div>"
             else:
-                html_output += f"<div class='emp-header' style='color: #d4edda;'>{res['name']}: ✅ No issues</div>"
+                html_output += f"<div class='emp-header' style='color: #a5d6a7;'>{res['name']}: No issues</div>"
         html_output += "</div>"
         st.markdown(html_output, unsafe_allow_html=True)
 
