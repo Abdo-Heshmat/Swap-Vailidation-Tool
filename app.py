@@ -20,7 +20,7 @@ st.markdown("""
     <style>
     .stApp { max-width: 1100px; margin: 0 auto; }
     
-    /* Centered Name Input */
+    /* Center text inside Name Input */
     input[type="text"] {
         text-align: center !important;
         background-color: #1e2129 !important;
@@ -51,14 +51,14 @@ st.markdown("""
         justify-content: center;
     }
 
-    .status-container { padding: 25px; border-radius: 15px; margin-top: 20px; text-align: center; }
+    .status-container { padding: 25px; border-radius: 15px; margin-top: 20px; }
     .approved { background-color: #1b5e20; color: white; border: 2px solid #ffffff; }
     .rejected { background-color: #b71c1c; color: white; border: 2px solid #ffffff; }
-    .reason-text { font-size: 1.1rem; margin-top: 10px; font-weight: normal; opacity: 0.9; }
     .week-label { text-align: center; font-weight: bold; margin-bottom: 10px; display: block; }
     </style>
     """, unsafe_allow_html=True)
 
+# Title updated to remove the shield icon
 st.markdown("<h1 style='text-align: center;'>Swap Validation Tool</h1>", unsafe_allow_html=True)
 
 is_ramadan = st.checkbox("🌙 Ramadan's shifts (7 hours)")
@@ -73,7 +73,7 @@ shift_data = {}
 for i, col in enumerate([col1, col2], 1):
     with col:
         st.markdown(f"<h3 style='text-align: center;'>👤 Employee {i}</h3>", unsafe_allow_html=True)
-        st.text_input(
+        emp_name = st.text_input(
             label=f"E{i} Name", 
             placeholder="Enter your Name here", 
             key=f"name_input_{i}", 
@@ -102,29 +102,14 @@ for i, col in enumerate([col1, col2], 1):
 st.divider()
 
 if st.button("✅ Check the Validation", use_container_width=True):
-    # Validation Logic: Employee 1 End (Day 1) to Employee 2 Start (Day 2)
     dt_end = get_dt(1, shift_data["e1_Current Week_end"])
-    dt_start = get_dt(2, shift_data["e1_Current Week_start"])
+    dt_start = get_dt(2, shift_data["e1_Next Week_start"])
     rest_hours = (dt_start - dt_end).total_seconds() / 3600
     
     if rest_hours >= 21:
-        st.markdown(f"""
-            <div class='status-container approved'>
-                <h2>✅ Swap Approved</h2>
-                <p>Rest Period: {rest_hours:.1f} hours</p>
-            </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f"<div class='status-container approved'><h2 style='text-align: center;'>✅ Swap Approved</h2></div>", unsafe_allow_html=True)
         st.balloons()
     else:
-        # Added the REASON for rejection here
-        st.markdown(f"""
-            <div class='status-container rejected'>
-                <h2>❌ Swap Rejected</h2>
-                <div class='reason-text'>
-                    <b>Reason:</b> Insufficient rest between shifts.<br>
-                    Actual: {rest_hours:.1f} hours | Required: 21.0 hours
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f"<div class='status-container rejected'><h2 style='text-align: center;'>❌ Swap Rejected</h2></div>", unsafe_allow_html=True)
 
 st.markdown("<br><center><b>Created by Abdelrahman heshmat @abheshma</b></center>", unsafe_allow_html=True)
