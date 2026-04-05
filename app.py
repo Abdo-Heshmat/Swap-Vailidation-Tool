@@ -37,7 +37,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.markdown("<h1 style='text-align: center;'>🔄 Professional Swap Validator</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'> Professional Swap Validator</h1>", unsafe_allow_html=True)
 
 with st.expander("📋 View Validation Rules & Exemptions"):
     st.markdown("""
