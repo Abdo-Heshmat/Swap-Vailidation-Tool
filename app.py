@@ -10,77 +10,94 @@ def calculate_end_time(start_time_str, duration):
 def get_dt(day_idx, time_str, is_end_time=False, start_time_str=None):
     base_date = datetime(2026, 3, 22) 
     target_date = base_date + timedelta(days=day_idx-1)
-    
-    # Internal Logic: Fixes the approval problem by correctly identifying 
-    # shifts that cross midnight (e.g., 5 PM to 2 AM) as ending the next day.
     if is_end_time and start_time_str:
         s_hour = datetime.strptime(start_time_str, "%I %p").hour
         e_hour = datetime.strptime(time_str, "%I %p").hour
         if e_hour < s_hour:
             target_date += timedelta(days=1)
-            
     time_obj = datetime.strptime(time_str, "%I %p").time()
     return datetime.combine(target_date, time_obj)
 
-# --- UI Styling (Updated to match image_d7d386.png) ---
+# --- Theme State Management ---
+if 'theme' not in st.session_state:
+    st.session_state.theme = 'dark'
+
+def toggle_theme():
+    st.session_state.theme = 'light' if st.session_state.theme == 'dark' else 'dark'
+
+# Define Unified Colors
+if st.session_state.theme == 'dark':
+    bg_color = "#0e1117"
+    box_bg = "#1e2129"
+    text_color = "#ffffff"
+    border_color = "#3e4451"
+    btn_face = "☀️" 
+else:
+    bg_color = "#ffffff"
+    box_bg = "#f0f2f6"
+    text_color = "#31333F"
+    border_color = "#d3d3d3"
+    btn_face = "🌙"
+
 st.set_page_config(layout="wide", page_title="Swap Validator Pro")
 
-st.markdown("""
+# --- Global CSS for Unified Design ---
+st.markdown(f"""
     <style>
-    .stApp { background-color: #0e1117; color: #ffffff; max-width: 1100px; margin: 0 auto; }
+    .stApp {{ background-color: {bg_color}; color: {text_color}; max-width: 1100px; margin: 0 auto; }}
     
-    /* Input Styling */
-    input[type="text"] { text-align: center !important; background-color: #1e2129 !important; color: white !important; border: 1px solid #3e4451 !important; border-radius: 8px !important; }
-    
-    /* THE FIX: Mock Selectbox for End Time */
-    .dark-match-box { 
-        background-color: #1e2129; 
-        color: white; 
-        padding: 0 15px; 
-        border-radius: 8px; 
-        border: 1px solid #3e4451; 
-        text-align: left; 
-        font-size: 1rem; 
-        height: 45px; 
-        line-height: 45px; 
-        display: flex; 
-        align-items: center; 
-        justify-content: space-between;
-        position: relative;
-    }
-    .dark-match-box::after {
-        content: '▼';
-        font-size: 0.6rem;
-        color: #9ea4b0;
-        margin-left: 10px;
-    }
+    /* Force all containers, inputs, and selectboxes to look identical */
+    div[data-testid="stVerticalBlockBorderWrapper"], 
+    .stSelectbox div[data-baseweb="select"],
+    input[type="text"],
+    .unified-box {{
+        background-color: {box_bg} !important;
+        color: {text_color} !important;
+        border: 1px solid {border_color} !important;
+        border-radius: 8px !important;
+    }}
 
-    /* Status Containers */
-    .rules-box { background-color: #1e2129; padding: 20px; border-radius: 10px; border-left: 5px solid #007bff; margin-bottom: 20px; }
-    .exemption-box { background-color: #332b00; padding: 10px; border-radius: 5px; border: 1px solid #ffcc00; margin-top: 10px; font-size: 0.9rem; }
-    .status-container { padding: 20px; border-radius: 12px; margin-top: 15px; }
-    .approved { background-color: #1b5e20; color: white; border: 2px solid #ffffff; }
-    .rejected { background-color: #b71c1c; color: white; border: 2px solid #ffffff; }
-    .emp-header { font-weight: bold; font-size: 1.2rem; margin-top: 10px; text-decoration: underline; }
-    .reason-item { margin-left: 20px; font-size: 1rem; list-style-type: disc; }
+    /* Specific fix for the 2nd End Time box to match the first */
+    .unified-box {{
+        height: 42px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        font-size: 1rem;
+    }}
+
+    .rules-box {{ 
+        background-color: {box_bg}; 
+        padding: 20px; 
+        border-radius: 10px; 
+        border-left: 5px solid #007bff; 
+        margin-bottom: 20px; 
+    }}
+
+    /* Button Positioning */
+    .stButton>button {{
+        border-radius: 20px;
+    }}
     </style>
     """, unsafe_allow_html=True)
 
-st.markdown("<h1 style='text-align: center;'>🔄 Smart Swap Validator</h1>", unsafe_allow_html=True)
+# --- Header with Top-Right Toggle ---
+header_col, toggle_col = st.columns([9, 1])
+with header_col:
+    st.markdown("<h1>🔄 Smart Swap Validator</h1>", unsafe_allow_html=True)
+with toggle_col:
+    # Use the symbols requested: Moon for Dark pref, Sun for Light pref
+    st.button(btn_face, on_click=toggle_theme, help="Toggle Light/Dark Mode")
 
 # --- Rules Section ---
-with st.expander("📋 View Validation Rules & Exemptions", expanded=False):
-    st.markdown("""
+with st.expander("📋 View Validation Rules & Exemptions"):
+    st.markdown(f"""
     <div class='rules-box'>
         <b>✅ Rules Applied:</b><br>
         * Minimum 12 hours rest between shift end and next shift start.<br>
         * Maximum 6 consecutive working days across weeks.<br>
-        * <b>Midnight Check:</b> 5 PM to 2 AM counts as finishing the NEXT day.<br>
-        <div class='exemption-box'>
-            <b>⚠️ Exemption Rules:</b><br>
-            1. If employee is off on <b>Saturday (Day 7)</b>, 12-hour rule is <b>WAIVED</b>.<br>
-            2. If employee is off on <b>Sunday (Day 8)</b>, 12-hour rule is <b>WAIVED</b>.
-        </div>
+        * <b>Important:</b> Midnight crossing shifts (e.g., 5 PM - 2 AM) are correctly calculated.
     </div>
     """, unsafe_allow_html=True)
 
@@ -93,84 +110,62 @@ hours = [datetime.strptime(str(i), "%H").strftime("%I %p") for i in range(24)]
 col1, col2 = st.columns(2)
 shift_starts, shift_ends, off_counts, off_days = {}, {}, {}, {}
 
-# --- Employee Columns ---
 for i, col in enumerate([col1, col2], 1):
     with col:
         st.markdown(f"<h3 style='text-align: center;'>👤 Employee {i}</h3>", unsafe_allow_html=True)
-        # Fix for TypeError: Added the required label ""
-        st.text_input("Name Label", placeholder=f"Employee {i} Name", key=f"user_name_{i}", label_visibility="collapsed")
+        # Fixed TypeError by providing label
+        st.text_input(f"Name Label {i}", placeholder=f"Enter Name", key=f"user_name_{i}", label_visibility="collapsed")
         
         for week in ["Current", "Next"]:
             with st.container(border=True):
                 st.markdown(f"<center><b>🗓️ {week} Week</b></center>", unsafe_allow_html=True)
-                
                 t1, t2, t3 = st.columns([3, 1, 3])
                 with t1:
-                    s_time = st.selectbox(f"Start {i}{week}", hours, index=17 if i==1 and week=="Current" else 9, key=f"s{i}_{week}", label_visibility="collapsed")
+                    s_time = st.selectbox(f"S{i}{week}", hours, index=17 if i==1 and week=="Current" else 9, key=f"s{i}_{week}", label_visibility="collapsed")
                 with t2: st.write("<br><center>to</center>", unsafe_allow_html=True)
                 with t3:
-                    # MATCHING DESIGN: Styled to look like st.selectbox
+                    # Unified Box: No arrow, same background as start time
                     e_time = calculate_end_time(s_time, duration)
-                    st.markdown(f"<div class='dark-match-box'><span>{e_time}</span></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='unified-box'>{e_time}</div>", unsafe_allow_html=True)
                     shift_starts[f"e{i}_{week}"] = s_time
                     shift_ends[f"e{i}_{week}"] = e_time
 
                 st.write("Days Off:")
                 d_col1, d_col2 = st.columns(2)
-                off1 = d_col1.selectbox(f"Off1 {i}{week}", ["First Day off"] + day_list, key=f"d{i}a_{week}", label_visibility="collapsed")
-                filtered_days = [d for d in day_list if d != off1] 
-                off2 = d_col2.selectbox(f"Off2 {i}{week}", ["Second Day off"] + filtered_days, key=f"d{i}b_{week}", label_visibility="collapsed")
+                off1 = d_col1.selectbox(f"O1{i}{week}", ["First Day off"] + day_list, key=f"d{i}a_{week}", label_visibility="collapsed")
+                off2 = d_col2.selectbox(f"O2{i}{week}", ["Second Day off"] + [d for d in day_list if d != off1], key=f"d{i}b_{week}", label_visibility="collapsed")
                 
-                count = 0
-                if off1 != "First Day off": count += 1
-                if off2 != "Second Day off": count += 1
-                off_counts[f"e{i}_{week}"] = count
+                off_counts[f"e{i}_{week}"] = sum(1 for x in [off1, off2] if "Day off" not in x)
                 off_days[f"e{i}_{week}"] = [off1, off2]
 
 st.divider()
 
 if st.button("🚀 Run Swap Check", use_container_width=True):
     validation_results = []
-    swap_config = {
-        1: {"cur_id": "e1_Current", "next_id": "e2_Next", "name_key": "user_name_1"},
-        2: {"cur_id": "e2_Current", "next_id": "e1_Next", "name_key": "user_name_2"}
-    }
+    configs = {1: {"cur": "e1_Current", "next": "e2_Next", "n": "user_name_1"}, 
+               2: {"cur": "e2_Current", "next": "e1_Next", "n": "user_name_2"}}
 
-    for emp_num, config in swap_config.items():
+    for emp_num, cfg in configs.items():
         reasons = []
-        name = st.session_state[config['name_key']] if st.session_state[config['name_key']] else f"Employee {emp_num}"
+        name = st.session_state[cfg['n']] if st.session_state[cfg['n']] else f"Employee {emp_num}"
         
-        # Applying Exemption Logic
-        is_off_sat = "Saturday" in off_days[config['cur_id']]
-        is_off_sun = "Sunday" in off_days[config['next_id']]
-
-        if not (is_off_sat or is_off_sun):
-            dt_end = get_dt(7, shift_ends[config['cur_id']], is_end_time=True, start_time_str=shift_starts[config['cur_id']])
-            dt_start = get_dt(8, shift_starts[config['next_id']])
+        if not ("Saturday" in off_days[cfg['cur']] or "Sunday" in off_days[cfg['next']]):
+            dt_end = get_dt(7, shift_ends[cfg['cur']], True, shift_starts[cfg['cur']])
+            dt_start = get_dt(8, shift_starts[cfg['next']])
             rest = (dt_start - dt_end).total_seconds() / 3600
-            
-            if rest < 12:
-                reasons.append(f"Insufficient Rest: Only **{rest:.1f}h** (Min 12h required).")
+            if rest < 12: reasons.append(f"Insufficient Rest: **{rest:.1f}h** (Min 12h).")
         
-        work_cur = 7 - off_counts[config['cur_id']]
-        work_next = 7 - off_counts[config['next_id']]
-        if work_cur > 6: reasons.append(f"Current Week: Working **{work_cur} days** (Limit 6).")
-        if work_next > 6: reasons.append(f"Next Week: Working **{work_next} days** (Limit 6).")
-            
+        if (7 - off_counts[cfg['cur']]) > 6: reasons.append("Current Week: Working > 6 days.")
+        if (7 - off_counts[cfg['next']]) > 6: reasons.append("Next Week: Working > 6 days.")
         validation_results.append({"name": name, "reasons": reasons})
 
     is_success = all(len(r["reasons"]) == 0 for r in validation_results)
-    if is_success:
-        st.markdown("<div class='status-container approved'><h2 style='text-align: center;'>✅ Swap Approved</h2></div>", unsafe_allow_html=True)
-        st.balloons()
-    else:
-        html = "<div class='status-container rejected'><h2 style='text-align: center;'>❌ Swap Rejected</h2>"
-        for res in validation_results:
-            html += f"<div class='emp-header'>{res['name']}</div>"
-            if res["reasons"]:
-                for r in res["reasons"]: html += f"<div class='reason-item'>{r}</div>"
-            else:
-                html += "<div class='reason-item' style='color: #a5d6a7;'>✅ Schedule is safe.</div>"
-        st.markdown(html + "</div>", unsafe_allow_html=True)
+    title = "✅ Swap Approved" if is_success else "❌ Swap Rejected"
+    st.markdown(f"<div style='padding:20px; border-radius:12px; border: 2px solid white; background-color:{'#1b5e20' if is_success else '#b71c1c'}; color:white;'><h2 style='text-align: center;'>{title}</h2>", unsafe_allow_html=True)
+    for res in validation_results:
+        st.write(f"**{res['name']}**")
+        for r in res["reasons"]: st.write(f" - {r}")
+        if not res["reasons"]: st.write(" - Safe schedule.")
+    st.markdown("</div>", unsafe_allow_html=True)
 
 st.markdown("<br><center><b>Created by Abdelrahman heshmat @abheshma</b></center>", unsafe_allow_html=True)
