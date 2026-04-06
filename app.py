@@ -8,17 +8,16 @@ def calculate_end_time(start_time_str, duration):
     return end_dt.strftime("%I %p")
 
 def get_dt(day_idx, time_str, is_end_time=False, start_time_str=None):
-    # Base date: Sunday, March 22 (Day 1)
+    # Day 1-7 = Current Week | Day 8-14 = Next Week
     base_date = datetime(2026, 3, 22) 
     target_date = base_date + timedelta(days=day_idx-1)
     
     current_time_obj = datetime.strptime(time_str, "%I %p")
     
-    # Critical Fix: Cross-Midnight Shift logic
+    # CROSS MIDNIGHT LOGIC
     if is_end_time and start_time_str:
         start_time_obj = datetime.strptime(start_time_str, "%I %p")
-        # If shift ends early morning (e.g., 6 AM) but started in PM (e.g., 9 PM)
-        # the end time is on the NEXT day.
+        # If End Hour < Start Hour (e.g., 02 AM < 05 PM), it is technically the NEXT DAY
         if current_time_obj.hour < start_time_obj.hour:
             target_date += timedelta(days=1)
             
@@ -31,7 +30,6 @@ if 'theme' not in st.session_state:
 def toggle_theme():
     st.session_state.theme = 'light' if st.session_state.theme == 'dark' else 'dark'
 
-# UI Colors based on mode
 if st.session_state.theme == 'dark':
     bg_color, box_bg, text_color, border_color, btn_face = "#0e1117", "#1e2129", "#ffffff", "#3e4451", "☀️"
 else:
@@ -39,6 +37,7 @@ else:
 
 st.set_page_config(layout="wide", page_title="Smart Swap Validator")
 
+# --- Unified Styling ---
 st.markdown(f"""
     <style>
     .stApp {{ background-color: {bg_color}; color: {text_color}; max-width: 1100px; margin: 0 auto; }}
@@ -51,13 +50,10 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# Header with Top-Right Toggle
+# Top Header & Theme Toggle
 h_col, t_col = st.columns([9, 1])
 with h_col: st.markdown("<h1>🔄 Smart Swap Validator</h1>", unsafe_allow_html=True)
 with t_col: st.button(btn_face, on_click=toggle_theme)
-
-with st.expander("📋 View Validation Rules & Exemptions"):
-    st.markdown(f"**Rules:** Min 12h rest | Max 6 consecutive days", unsafe_allow_html=True)
 
 is_ramadan = st.checkbox("🌙 Ramadan's shifts (7 hours)")
 duration = 7 if is_ramadan else 9
@@ -77,7 +73,7 @@ for i, col in enumerate([col1, col2], 1):
             with st.container(border=True):
                 st.markdown(f"<center><b>🗓️ {week} Week</b></center>", unsafe_allow_html=True)
                 t1, t2, t3 = st.columns([3, 1, 3])
-                with t1: s_t = st.selectbox(f"S{i}{week}", hours, index=14 if i==1 else 21, key=f"s{i}{week}", label_visibility="collapsed")
+                with t1: s_t = st.selectbox(f"S{i}{week}", hours, index=9, key=f"s{i}{week}", label_visibility="collapsed")
                 with t2: st.write("<br><center>to</center>", unsafe_allow_html=True)
                 with t3:
                     e_t = calculate_end_time(s_t, duration)
@@ -85,10 +81,13 @@ for i, col in enumerate([col1, col2], 1):
                 
                 st.write("Days Off:")
                 d1, d2 = st.columns(2)
-                o1 = d1.selectbox(f"O1{i}{week}", ["Day off 1"] + day_list, key=f"o1{i}{week}", label_visibility="collapsed")
-                o2 = d2.selectbox(f"O2{i}{week}", ["Day off 2"] + day_list, key=f"o2{i}{week}", label_visibility="collapsed")
+                # --- FIX: Filter duplicate days ---
+                off1 = d1.selectbox(f"O1{i}{week}", ["Day off 1"] + day_list, key=f"o1{i}{week}", label_visibility="collapsed")
                 
-                indices = [day_list.index(o)+1 for o in [o1, o2] if o in day_list]
+                remaining_days = [d for d in day_list if d != off1]
+                off2 = d2.selectbox(f"O2{i}{week}", ["Day off 2"] + remaining_days, key=f"o2{i}{week}", label_visibility="collapsed")
+                
+                indices = [day_list.index(o)+1 for o in [off1, off2] if o in day_list]
                 shift_data[f"e{i}_{week}"] = {"start": s_t, "end": e_t, "off": sorted(indices)}
 
 st.divider()
@@ -102,14 +101,13 @@ if st.button("🚀 Run Swap Check", use_container_width=True):
         reasons = []
         name = st.session_state[cfg['u']] or f"Employee {emp_num}"
         
-        # 1. 12H Rest & Exemptions
-        # Current Saturday (Day 7) or Next Sunday (Day 8)
+        # 12-Hour Rest Exemption Check
         is_exempt = (7 in shift_data[cfg['c']]["off"]) or (1 in shift_data[cfg['n']]["off"])
         
         if is_exempt:
             reasons.append("✅ Exempt from 12-hour rule (Off Sat/Sun)")
         else:
-            # FIX: Explicitly setting Day 7 and Day 8
+            # Shift End (Day 7) vs Shift Start (Day 8)
             dt_end = get_dt(7, shift_data[cfg['c']]["end"], True, shift_data[cfg['c']]["start"])
             dt_start = get_dt(8, shift_data[cfg['n']]["start"])
             rest = (dt_start - dt_end).total_seconds() / 3600
@@ -119,10 +117,10 @@ if st.button("🚀 Run Swap Check", use_container_width=True):
             else:
                 reasons.append(f"✅ Sufficient Rest: **{rest:.1f}h**")
 
-        # 2. 6-Day Rule (Cross-Week)
+        # Consecutive Work (Limit 6)
         last_off = shift_data[cfg['c']]["off"][-1] if shift_data[cfg['c']]["off"] else 0
-        first_off_next = shift_data[cfg['n']]["off"][0] if shift_data[cfg['n']]["off"] else 8
-        consecutive = (7 - last_off) + (first_off_next - 1)
+        next_off = shift_data[cfg['n']]["off"][0] if shift_data[cfg['n']]["off"] else 8
+        consecutive = (7 - last_off) + (next_off - 1)
         
         if consecutive > 6:
             reasons.append(f"❌ Consecutive Work: **{consecutive} days** (Limit 6)")
