@@ -8,14 +8,14 @@ if 'theme' not in st.session_state: st.session_state.theme = 'light'
 def toggle_theme():
     st.session_state.theme = 'dark' if st.session_state.theme == 'light' else 'light'
 
-# Define Professional Reactive Palettes
+# Define strict reactive variables for UI
 if st.session_state.theme == 'dark':
     bg, box, txt, brd, accent = "#0e1117", "#1e2129", "#ffffff", "#3e4451", "#4f46e5"
-    input_txt = "#ffffff"
+    btn_bg, btn_txt = "#1e2129", "#ffffff"
 else:
-    # Clean, High-Contrast Light Mode
-    bg, box, txt, brd, accent = "#f8fafc", "#ffffff", "#0f172a", "#cbd5e1", "#4f46e5"
-    input_txt = "#0f172a" # Dark text inside white boxes
+    # Clean Light Mode: Slate-50 background, White boxes, Dark-Slate text
+    bg, box, txt, brd, accent = "#f8fafc", "#ffffff", "#0f172a", "#cbd5e1", "#6366f1"
+    btn_bg, btn_txt = "#ffffff", "#0f172a"
 
 st.set_page_config(layout="wide", page_title="Smart Swap Validator Pro")
 
@@ -46,58 +46,53 @@ def get_dt(day_idx, time_str, is_end=False, s_time_str=None):
         if e_hour <= s_hour: final_dt += timedelta(days=1)
     return final_dt
 
-# --- 3. UI STYLING (FULL RESET FOR LIGHT MODE) ---
+# --- 3. UI STYLING (THE CLEAN LIGHT MODE FIX) ---
 st.markdown(f"""
     <style>
-    /* Main App Background */
+    /* 1. Main App Background */
     .stApp {{ background-color: {bg}; color: {txt}; }}
     
-    /* Text Readability */
-    h1, h2, h3, p, span, label, div {{ color: {txt} !important; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }}
+    /* 2. Global Text & Labels */
+    p, span, label, h1, h2, h3, .stMarkdown {{ color: {txt} !important; }}
 
-    /* Fix Input Boxes & Buttons for Light Mode */
+    /* 3. Inputs, Selectboxes, and Expanders */
     div[data-testid="stVerticalBlockBorderWrapper"], 
     .stSelectbox div[data-baseweb="select"],
     input[type="text"], 
     .unified-box, 
     .stNumberInput input,
-    div[data-testid="stExpander"] {{
+    div[data-testid="stExpander"],
+    .stSelectbox ul {{
         background-color: {box} !important; 
-        color: {input_txt} !important;
+        color: {txt} !important;
         border: 1px solid {brd} !important; 
         border-radius: 12px !important;
     }}
 
-    /* Ensure dropdown text is visible */
-    div[data-baseweb="select"] span {{ color: {input_txt} !important; }}
-    
-    /* Center text in inputs */
-    input {{ text-align: center !important; }}
-
-    .emp-header {{ text-align: center; font-weight: 800; font-size: 22px; margin-bottom: 15px; color: {accent} !important; }}
-    
-    .unified-box {{ 
-        height: 42px; display: flex; align-items: center; justify-content: center; 
-        font-weight: bold; border: 1px solid {brd}; 
-    }}
-
-    /* Main Button Styling */
+    /* 4. Button Fix (Specifically targeting the text and background) */
     .stButton>button {{
-        background-color: {accent} !important;
-        color: white !important;
+        background-color: {btn_bg} !important;
+        color: {btn_txt} !important;
+        border: 1px solid {brd} !important;
         border-radius: 10px !important;
-        border: none !important;
-        width: 100%;
-        padding: 10px;
-        font-weight: bold;
+        font-weight: 600 !important;
+        transition: all 0.2s ease;
+    }}
+    .stButton>button:hover {{
+        border-color: {accent} !important;
+        color: {accent} !important;
     }}
 
-    /* Result Card Styling */
-    .results-card {{ padding: 25px; border-radius: 20px; margin-top: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }}
+    .emp-header {{ text-align: center; font-weight: 800; font-size: 22px; margin-bottom: 15px; color: {accent}; }}
+    .unified-box {{ height: 42px; display: flex; align-items: center; justify-content: center; font-weight: bold; }}
+    .results-card {{ padding: 25px; border-radius: 20px; margin-top: 20px; border: 1px solid rgba(0,0,0,0.1); }}
+    
+    /* Center the toggle icon */
+    .stButton {{ display: flex; justify-content: center; }}
     </style>
     """, unsafe_allow_html=True)
 
-# Layout
+# Header Row
 l_col, h_col, r_col = st.columns([1, 8, 1])
 with r_col: st.button("☀️" if st.session_state.theme == 'dark' else "🌙", on_click=toggle_theme)
 with h_col: st.markdown(f'<h1 style="text-align:center;">👤🔁👤 Smart Swap Validator Pro</h1>', unsafe_allow_html=True)
@@ -112,11 +107,11 @@ c1, c2 = st.columns(2)
 for i, col in enumerate([c1, c2], 1):
     with col:
         st.markdown(f"<div class='emp-header'>Employee {i}</div>", unsafe_allow_html=True)
-        name_input = st.text_input(f"Name {i}", key=f"un{i}", placeholder=f"Enter Name", label_visibility="collapsed")
+        name_input = st.text_input(f"Name {i}", key=f"un{i}", placeholder=f"Name", label_visibility="collapsed")
         
         for wk in ["Current", "Next"]:
             with st.container(border=True):
-                st.markdown(f"<p style='text-align:center; font-weight:bold; margin-bottom:5px;'>🗓️ {wk} Week</p>", unsafe_allow_html=True)
+                st.markdown(f"<p style='text-align:center; font-weight:bold; margin-bottom:8px;'>🗓️ {wk} Week</p>", unsafe_allow_html=True)
                 t_cols = st.columns([4, 1, 4])
                 with t_cols[0]:
                     s_t = st.selectbox(f"S{i}{wk}", hrs, index=hrs.index(st.session_state.get(f"s{i}{wk}", "09 AM")), key=f"s{i}{wk}", label_visibility="collapsed")
@@ -142,5 +137,54 @@ for i, col in enumerate([c1, c2], 1):
 
 st.divider()
 
-# --- 5. VALIDATOR ---
-if st.button("🚀 Run Swap
+# --- 5. VALIDATOR ENGINE ---
+if st.button("🚀 Run Swap Check", use_container_width=True):
+    results = []
+    checks = [
+        {"cur": "e1_Current", "nxt": "e2_Next", "name": shift_data["e1_Current"]["name"]},
+        {"cur": "e2_Current", "nxt": "e1_Next", "name": shift_data["e2_Current"]["name"]}
+    ]
+
+    for check in checks:
+        cur_s, nxt_s = shift_data[check['cur']], shift_data[check['nxt']]
+        msgs, fail = [], False
+        
+        # Rule 1: Rest Hour Check
+        if (7 in cur_s['off']) or (1 in nxt_s['off']):
+            msgs.append("✅ **Rest Rule:** Waived (Weekend Day Off).")
+        else:
+            dt_e = get_dt(7, cur_s['e'], True, cur_s['s']) + timedelta(hours=cur_s['ota'])
+            dt_s = get_dt(8, nxt_s['s']) - timedelta(hours=nxt_s['otb'])
+            gap = (dt_s - dt_e).total_seconds() / 3600
+            if gap >= 12: msgs.append(f"✅ **Rest Rule:** Valid {gap:.1f}h gap.")
+            else:
+                msgs.append(f"❌ **Rest Rule:** REJECTED. Only {gap:.1f}h gap.")
+                fail = True
+
+        # Rule 2: 6-Day Consecutive
+        w1_work = [d for d in range(1, 8) if d not in cur_s['off']]
+        w2_work = [d for d in range(8, 15) if (d-7) not in nxt_s['off']]
+        combined = sorted(w1_work + w2_work)
+        streak, max_s = 0, 0
+        for day in range(1, 15):
+            if day in combined:
+                streak += 1
+                max_s = max(max_s, streak)
+            else: streak = 0
+        if max_s <= 6: msgs.append(f"✅ **Consecutive Rule:** Passed ({max_s} days).")
+        else:
+            msgs.append(f"❌ **Consecutive Rule:** REJECTED. {max_s}-day streak.")
+            fail = True
+        results.append({"name": check['name'], "msgs": msgs, "fail": fail})
+
+    # Results Display
+    all_ok = not any(r['fail'] for r in results)
+    res_bg = "#16a34a" if all_ok else "#dc2626"
+    st.markdown(f"<div class='results-card' style='background-color:{res_bg}; color:white;'>", unsafe_allow_html=True)
+    st.markdown(f"<h2 style='text-align:center; color:white; margin:0;'>{'✅ Swap Approved' if all_ok else '❌ Swap Rejected'}</h2>", unsafe_allow_html=True)
+    for r in results:
+        st.markdown(f"<hr style='opacity:0.2; margin:10px 0;'><b>{r['name']}</b>", unsafe_allow_html=True)
+        for m in r['msgs']: st.markdown(f"<p style='margin:0; font-size: 14px; color:white !important;'>{m}</p>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+st.button("🎲 Test Random Data", on_click=on_load_random)
