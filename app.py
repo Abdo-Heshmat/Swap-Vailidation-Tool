@@ -3,16 +3,15 @@ from datetime import datetime, timedelta
 import random
 
 # --- 1. THEME & INITIALIZATION ---
-if 'theme' not in st.session_state: 
-    st.session_state.theme = 'light'
+if 'theme' not in st.session_state: st.session_state.theme = 'light'
 
 def toggle_theme():
     st.session_state.theme = 'dark' if st.session_state.theme == 'light' else 'light'
 
 if st.session_state.theme == 'dark':
-    bg, box, txt, brd = "#0e1117", "#1e2129", "#ffffff", "#3e4451"
+    bg, box, txt, brd, accent = "#0e1117", "#1e2129", "#ffffff", "#3e4451", "#4f46e5"
 else:
-    bg, box, txt, brd = "#f8f9fa", "#ffffff", "#1f2937", "#d1d5db"
+    bg, box, txt, brd, accent = "#f8fafc", "#ffffff", "#0f172a", "#e2e8f0", "#6366f1"
 
 st.set_page_config(layout="wide", page_title="Smart Swap Validator Pro")
 
@@ -26,25 +25,28 @@ def on_load_random():
         for wk in ["Current", "Next"]:
             st.session_state[f"s{i}{wk}"] = random.choice(hrs)
             st.session_state[f"o1{i}{wk}"] = random.choice(days)
-            st.session_state[f"o2{i}{wk}"] = random.choice([d for d in days if d != st.session_state[f"o1{i}{wk}"]])
+            st.session_state[f"o2{i}{wk}"] = random.choice([d for d in days if d != st.session_state.get(f"o1{i}{wk}")])
             st.session_state[f"do_ot1_{i}_{wk}"] = False 
             st.session_state[f"do_ot2_{i}_{wk}"] = False
             st.session_state[f"otb_{i}_{wk}"] = 0
             st.session_state[f"ota_{i}_{wk}"] = 0
 
 def get_dt(day_idx, time_str, is_end=False, s_time_str=None):
-    # Dynamic Date Logic: Finds the most recent Sunday to keep the tool "Future-Proof"
-    today = datetime.now()
-    start_of_week = today - timedelta(days=(today.weekday() + 1) % 7)
-    
-    # day_idx 1-7 (Current Week), 8-14 (Next Week)
-    dt = start_of_week + timedelta(days=day_idx-1)
+    """
+    Day_idx: 1 (Sun) to 7 (Sat) for Week 1. 8 (Sun) for Week 2.
+    """
+    # Anchor to a specific Monday to keep math consistent
+    base_sunday = datetime(2026, 1, 4, 0, 0) 
+    dt = base_sunday + timedelta(days=day_idx-1)
     t_obj = datetime.strptime(time_str, "%I %p")
-    final_dt = datetime.combine(dt, t_obj.time())
+    final_dt = datetime.combine(dt.date(), t_obj.time())
     
+    # If it's an end time and it's numerically 'smaller' than start (e.g., Start 11PM, End 8AM)
+    # it means the shift ended the following morning.
     if is_end and s_time_str:
-        # Handle overnight shifts (Crosses Midnight)
-        if t_obj.hour < datetime.strptime(s_time_str, "%I %p").hour: 
+        s_hour = datetime.strptime(s_time_str, "%I %p").hour
+        e_hour = t_obj.hour
+        if e_hour <= s_hour: 
             final_dt += timedelta(days=1)
     return final_dt
 
@@ -60,10 +62,11 @@ st.markdown(f"""
         border: 1px solid {brd} !important; border-radius: 10px !important;
         text-align: center !important;
     }}
-    .emp-header {{ text-align: center; font-weight: 800; font-size: 22px; margin-bottom: 15px; color: {txt}; }}
+    p, span, label, .stMarkdown {{ color: {txt} !important; }}
+    .emp-header {{ text-align: center; font-weight: 800; font-size: 22px; margin-bottom: 15px; color: {accent}; }}
     .unified-box {{ height: 42px; display: flex; align-items: center; justify-content: center; font-weight: bold; background-color: {box}; border-radius: 8px; }}
     .test-btn-container {{ position: fixed; bottom: 20px; left: 20px; z-index: 1000; }}
-    .results-card {{ padding: 20px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.1); margin-top: 20px; }}
+    .results-card {{ padding: 20px; border-radius: 15px; border: 1px solid rgba(0,0,0,0.05); margin-top: 20px; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -81,102 +84,98 @@ c1, c2 = st.columns(2)
 for i, col in enumerate([c1, c2], 1):
     with col:
         st.markdown(f"<div class='emp-header'>Employee {i}</div>", unsafe_allow_html=True)
-        st.text_input(f"Name {i}", key=f"un{i}", placeholder="Enter Name", label_visibility="collapsed")
+        name_input = st.text_input(f"Name {i}", key=f"un{i}", placeholder=f"Employee {i} Name", label_visibility="collapsed")
+        
         for wk in ["Current", "Next"]:
             with st.container(border=True):
-                st.markdown(f"<center><b>🗓️ {wk} Week</b></center>", unsafe_allow_html=True)
+                st.markdown(f"<p style='text-align:center; font-weight:bold; margin-bottom:5px;'>🗓️ {wk} Week</p>", unsafe_allow_html=True)
                 t_cols = st.columns([4, 1, 4])
                 with t_cols[0]:
-                    s_t = st.selectbox(f"S{i}{wk}", hrs, index=hrs.index(st.session_state.get(f"s{i}{wk}", "11 PM")), key=f"s{i}{wk}", label_visibility="collapsed")
+                    s_t = st.selectbox(f"S{i}{wk}", hrs, index=hrs.index(st.session_state.get(f"s{i}{wk}", "09 AM")), key=f"s{i}{wk}", label_visibility="collapsed")
                 t_cols[1].markdown("<p style='text-align:center; padding-top:10px;'>to</p>", unsafe_allow_html=True)
                 with t_cols[2]:
                     e_t = (datetime.strptime(s_t, "%I %p") + timedelta(hours=dur)).strftime("%I %p")
                     st.markdown(f"<div class='unified-box'>{e_t}</div>", unsafe_allow_html=True)
                 
-                o1 = st.selectbox(f"O1{i}{wk}", ["1st Day Off"] + days, key=f"o1{i}{wk}", label_visibility="collapsed")
-                st.toggle("Work 6th Day OT", key=f"do_ot1_{i}_{wk}", disabled=st.session_state.get(f"do_ot2_{i}_{wk}", False))
+                o1 = st.selectbox(f"O1{i}{wk}", ["None"] + days, key=f"o1{i}{wk}", label_visibility="collapsed")
+                ot1 = st.toggle("Work 6th Day OT", key=f"do_ot1_{i}_{wk}")
                 
-                o2 = st.selectbox(f"O2{i}{wk}", ["2nd Day Off"] + [d for d in days if d != o1], key=f"o2{i}{wk}", label_visibility="collapsed")
-                st.toggle("Work 7th Day OT", key=f"do_ot2_{i}_{wk}", disabled=st.session_state.get(f"do_ot1_{i}_{wk}", False))
+                o2 = st.selectbox(f"O2{i}{wk}", ["None"] + [d for d in days if d != o1], key=f"o2{i}{wk}", label_visibility="collapsed")
+                ot2 = st.toggle("Work 7th Day OT", key=f"do_ot2_{i}_{wk}")
                 
                 with st.expander("➕ Daily OT (Max 2h)"):
-                    cb, ca = st.session_state.get(f"otb_{i}_{wk}", 0), st.session_state.get(f"ota_{i}_{wk}", 0)
-                    st.number_input(f"Before {i}{wk}", 0, 2 - ca, key=f"otb_{i}_{wk}", label_visibility="collapsed")
-                    st.number_input(f"After {i}{wk}", 0, 2 - cb, key=f"ota_{i}_{wk}", label_visibility="collapsed")
+                    otb = st.number_input(f"Before {i}{wk}", 0, 2, key=f"otb_{i}_{wk}")
+                    ota = st.number_input(f"After {i}{wk}", 0, 2, key=f"ota_{i}_{wk}")
 
             real_offs = []
-            if o1 in days and not st.session_state[f"do_ot1_{i}_{wk}"]: real_offs.append(days.index(o1)+1)
-            if o2 in days and not st.session_state[f"do_ot2_{i}_{wk}"]: real_offs.append(days.index(o2)+1)
-            shift_data[f"e{i}_{wk}"] = {"s": s_t, "e": e_t, "off": real_offs}
+            if o1 in days and not ot1: real_offs.append(days.index(o1)+1)
+            if o2 in days and not ot2: real_offs.append(days.index(o2)+1)
+            shift_data[f"e{i}_{wk}"] = {"s": s_t, "e": e_t, "off": real_offs, "otb": otb, "ota": ota, "name": name_input or f"Emp {i}"}
 
 st.divider()
 
-# --- 5. UPDATED VALIDATION ENGINE ---
+# --- 5. UPDATED VALIDATOR ---
 if st.button("🚀 Run Swap Check", use_container_width=True):
     results = []
-    conflict_found = False
-    conflict_details = ""
+    checks = [
+        {"cur": "e1_Current", "nxt": "e2_Next", "name": shift_data["e1_Current"]["name"]},
+        {"cur": "e2_Current", "nxt": "e1_Next", "name": shift_data["e2_Current"]["name"]}
+    ]
 
-    # Check for Timing Conflicts (Overlap)
-    for d_idx in range(1, 15):
-        wk_label = "Current" if d_idx <= 7 else "Next"
-        day_name = days[(d_idx - 1) % 7]
-        
-        e1_info = shift_data[f"e1_{wk_label}"]
-        e2_info = shift_data[f"e2_{wk_label}"]
-        
-        # Check if both are working on this day
-        d_check = d_idx if d_idx <= 7 else d_idx - 7
-        if d_check not in e1_info["off"] and d_check not in e2_info["off"]:
-            start1 = get_dt(d_idx, e1_info["s"])
-            end1 = get_dt(d_idx, e1_info["e"], True, e1_info["s"])
-            start2 = get_dt(d_idx, e2_info["s"])
-            end2 = get_dt(d_idx, e2_info["e"], True, e2_info["s"])
-            
-            if (start1 < end2) and (end1 > start2):
-                conflict_found = True
-                conflict_details = f"Overlap on {day_name} ({wk_label} Week)"
-                break
-
-    # Check Rules for each employee
-    configs = {1: {"c": "e1_Current", "n": "e1_Next", "idx": 1}, 2: {"c": "e2_Current", "n": "e2_Next", "idx": 2}}
-    
-    for en, cfg in configs.items():
-        name = st.session_state[f"un{en}"] or f"Employee {en}"
+    for check in checks:
+        cur_shift = shift_data[check['cur']]
+        nxt_shift = shift_data[check['nxt']]
         msgs = []
+        fail = False
         
-        # Rest Rule Check
-        is_exempt = (7 in shift_data[cfg['c']]["off"]) or (1 in shift_data[cfg['n']]["off"])
+        # REST RULE (Saturday Week 1 to Sunday Week 2)
+        # Saturday is index 7. Sunday next week is index 8.
+        is_exempt = (7 in cur_shift['off']) or (1 in nxt_shift['off'])
+        
         if is_exempt:
-            msgs.append("✅ **Rest Rule:** Waived (Has Sat/Sun off).")
+            msgs.append("✅ **Rest Rule:** Waived (Weekend Day Off).")
         else:
-            dt_e = get_dt(7, shift_data[cfg['c']]["e"], True, shift_data[cfg['c']]["s"]) + timedelta(hours=st.session_state.get(f"ota_{cfg['idx']}_Current", 0))
-            dt_s = get_dt(8, shift_data[cfg['n']]["s"]) - timedelta(hours=st.session_state.get(f"otb_{cfg['idx']}_Next", 0))
+            # End of Saturday shift + OT After
+            dt_e = get_dt(7, cur_shift['e'], True, cur_shift['s']) + timedelta(hours=cur_shift['ota'])
+            # Start of Sunday shift - OT Before
+            dt_s = get_dt(8, nxt_shift['s']) - timedelta(hours=nxt_shift['otb'])
+            
             gap = (dt_s - dt_e).total_seconds() / 3600
             
             if gap >= 12:
-                msgs.append(f"✅ **Rest Rule:** Sufficient {gap:.1f}h gap between weeks.")
+                msgs.append(f"✅ **Rest Rule:** Valid {gap:.1f}h gap.")
             else:
-                msgs.append(f"❌ **Rest Rule Rejected:** Found {gap:.1f}h gap between Saturday and Sunday. (12h required).")
+                msgs.append(f"❌ **Rest Rule:** REJECTED. Only {gap:.1f}h rest between weeks.")
+                fail = True
 
-        if conflict_found:
-            msgs.append(f"❌ **Conflict Alert:** {conflict_details}")
+        # CONSECUTIVE RULE
+        w1_work = [d for d in range(1, 8) if d not in cur_shift['off']]
+        w2_work = [d for d in range(8, 15) if (d-7) not in nxt_shift['off']]
+        combined = sorted(w1_work + w2_work)
+        streak, max_s = 0, 0
+        for day in range(1, 15):
+            if day in combined:
+                streak += 1
+                max_s = max(max_s, streak)
+            else: streak = 0
             
-        results.append({"name": name, "msgs": msgs})
+        if max_s <= 6:
+            msgs.append(f"✅ **Consecutive Rule:** Passed ({max_s} days).")
+        else:
+            msgs.append(f"❌ **Consecutive Rule:** REJECTED. {max_s}-day streak.")
+            fail = True
+            
+        results.append({"name": check['name'], "msgs": msgs, "fail": fail})
 
-    # Display Results Card
-    all_pass = all("❌" not in "".join(r["msgs"]) for r in results)
-    card_color = "#1b5e20" if all_pass else "#b71c1c"
+    # Results UI
+    all_ok = not any(r['fail'] for r in results)
+    res_bg = "#16a34a" if all_ok else "#dc2626"
     
-    st.markdown(f"""
-        <div class='results-card' style='background-color:{card_color}; color:white;'>
-        <h2 style='text-align:center; color:white;'>{'✅ Swap Approved' if all_pass else '❌ Swap Rejected'}</h2>
-        """, unsafe_allow_html=True)
-    
+    st.markdown(f"<div class='results-card' style='background-color:{res_bg}; color:white;'>", unsafe_allow_html=True)
+    st.markdown(f"<h2 style='text-align:center; color:white; margin:0;'>{'✅ Swap Approved' if all_ok else '❌ Swap Rejected'}</h2>", unsafe_allow_html=True)
     for r in results:
-        st.markdown(f"<b>{r['name']}</b>", unsafe_allow_html=True)
-        for m in r['msgs']:
-            st.markdown(f"<p style='margin:0; font-size: 14px;'>{m}</p>", unsafe_allow_html=True)
+        st.markdown(f"<hr style='opacity:0.2; margin:10px 0;'><b>{r['name']}</b>", unsafe_allow_html=True)
+        for m in r['msgs']: st.markdown(f"<p style='margin:0; font-size: 14px; color:white;'>{m}</p>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
 st.markdown('<div class="test-btn-container">', unsafe_allow_html=True)
