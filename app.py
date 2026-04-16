@@ -42,6 +42,7 @@ st.markdown(f"""
     .status-line {{ padding: 10px; margin: 8px 0; border-radius: 8px; background: rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; border: 1px solid rgba(255,255,255,0.1); }}
     .test-btn-container {{ position: fixed; bottom: 20px; left: 20px; z-index: 1000; }}
     .unified-box {{ height: 42px; display: flex; align-items: center; justify-content: center; font-weight: bold; border-radius: 8px; border: 1px solid {brd}; background: {box}; }}
+    .footer {{ text-align: center; margin-top: 50px; padding: 20px; color: {txt}; opacity: 0.7; font-size: 14px; border-top: 1px solid {brd}; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -52,10 +53,10 @@ with h_col:
     st.markdown('<h1>👤🔁👤 Smart Swap Validator Pro</h1>', unsafe_allow_html=True)
     with st.expander("📋 View Validation Rules"):
         st.markdown("""
-        - **True Swap:** Employee 1 moves to Employee 2's schedule.
+        - **True Swap Logic:** Checks $Emp1_{Current} \\rightarrow Emp2_{Next}$ and $Emp2_{Current} \\rightarrow Emp1_{Next}$.
         - **Rest Rule:** Min 12 hours between shifts (Waived if off on Saturday or Sunday).
         - **Streak Rule:** Max 6 consecutive working days across weeks.
-        - **Shift Duration:** 9 hours (Normal) / 7 hours (Ramadan).
+        - **Shift Duration:** 9 hours (Normal) / 7 hours (Ramadan Mode).
         - **OT Cap:** Max 2 hours total daily (Mutual Exclusion logic applied).
         """)
 
@@ -119,7 +120,7 @@ if st.button("🚀 Run True Swap Check", use_container_width=True):
     if not all_days_selected:
         st.error("⚠️ No Days off selected. Please choose your days off for both weeks.")
     else:
-        # The Cross-Over Mapping
+        # True Swap Cross-Over Mapping
         swaps = [
             {"name": st.session_state.un1 or "Employee 1", "curr": "e1_Current", "next": "e2_Next", "idx_c": 1, "idx_n": 2},
             {"name": st.session_state.un2 or "Employee 2", "curr": "e2_Current", "next": "e1_Next", "idx_c": 2, "idx_n": 1}
@@ -149,21 +150,24 @@ if st.button("🚀 Run True Swap Check", use_container_width=True):
 
         all_pass = all(r["r_pass"] and r["s_pass"] for r in results)
         
-        # Results Card
+        # Results Card UI
         st.markdown(f"<div class='results-card' style='background-color:{'#1b5e20' if all_pass else '#b71c1c'}; color:white;'>", unsafe_allow_html=True)
         st.markdown(f"<h2 style='text-align:center; color:white;'>{'✅ Swap Approved' if all_pass else '❌ Swap Rejected'}</h2>", unsafe_allow_html=True)
         
         for r in results:
             st.markdown(f"#### 👤 {r['name']}")
-            r_ico = "🟢" if r['r_pass'] else "🔴"
-            s_ico = "🟢" if r['s_pass'] else "🔴"
-            
+            r_ico, s_ico = ("🟢" if r['r_pass'] else "🔴"), ("🟢" if r['s_pass'] else "🔴")
             st.markdown(f"<div class='status-line'><span>{r_ico} <b>Rest Rule</b> (Min 12h)</span> <span>{r['r_msg']}</span></div>", unsafe_allow_html=True)
             st.markdown(f"<div class='status-line'><span>{s_ico} <b>Work Streak</b> (Max 6d)</span> <span>{r['s_val']}</span></div>", unsafe_allow_html=True)
-            
         st.markdown("</div>", unsafe_allow_html=True)
 
-# Test Data Button
+# --- 6. FOOTER & TEST BUTTON ---
 st.markdown('<div class="test-btn-container">', unsafe_allow_html=True)
 st.button("🎲 Test Data", on_click=on_load_random)
 st.markdown('</div>', unsafe_allow_html=True)
+
+st.markdown("""
+    <div class="footer">
+        Created by Abdelrhamand Heshmat - chime me @abheshma
+    </div>
+    """, unsafe_allow_html=True)
